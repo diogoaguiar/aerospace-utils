@@ -2,7 +2,10 @@
 
 Command-line utilities for the [AeroSpace](https://github.com/nikitabobko/AeroSpace) tiling window manager on macOS.
 
-AeroSpace moves windows to other workspaces one at a time, but it has no command to swap or renumber whole workspaces. `aeroutils` does that for you: it moves every window on a workspace in one go.
+AeroSpace moves windows to other workspaces one at a time and builds layouts one split at a time. `aeroutils` works on whole workspaces instead:
+
+- **Swap, move and reorder workspaces**, carrying every window along.
+- **Apply layouts** (columns, grids, a main window with a stack, or your own) to all windows on a workspace at once, and preview them as diagrams in the terminal first.
 
 ## Requirements
 
@@ -60,6 +63,88 @@ In `list`, `*` marks the focused workspace and `+` the other visible ones.
 
 List the workspaces in the order you want their windows to end up. The same numbers, sorted, are the slots to fill. In `aeroutils reorder 3 1 2` the slots are 1, 2 and 3, so the windows from 3 fill slot 1, the windows from 1 fill slot 2 and the windows from 2 fill slot 3. Workspaces you don't list are left alone.
 
+## Layouts
+
+```sh
+aeroutils layouts                    # draw every layout
+aeroutils layouts 3                  # the layouts that fit workspace 3, filled with its windows
+aeroutils layout main-left           # arrange the focused workspace
+aeroutils layout grid 3              # arrange workspace 3
+aeroutils layout main-left -o chrome # put Chrome in the main slot
+```
+
+```text
+$ aeroutils layout main-left -n
+Would apply main-left to workspace 2 (3 windows):
+┌─────────────────────────┬────────────────┐
+│                         │                │
+│                         │                │
+│                         │   2 Browser    │
+│                         │                │
+│                         │                │
+│       1 Terminal        ├────────────────┤
+│                         │                │
+│                         │                │
+│                         │     3 Chat     │
+│                         │                │
+│                         │                │
+└─────────────────────────┴────────────────┘
+```
+
+| Layout | Windows | Shape |
+| --- | --- | --- |
+| `columns` | any | All windows side by side |
+| `rows` | any | All windows stacked top to bottom |
+| `grid` | any | Even grid, as square as possible |
+| `main-left`, `main-right` | 2+ | Main window (60%) beside a stack of the rest |
+| `main-top` | 2+ | Main window (60%) above a row of the rest |
+| `main-center` | 3+ | Main window (50%) between two stacks |
+| `2x2`, `3x2`, `2x3` | 4, 6, 6 | Fixed grids, given as columns x rows |
+
+`layout` options:
+
+| Option | Effect |
+| --- | --- |
+| `-o`, `--order APP_OR_ID` | Fill slots in this order. Takes an app name (any part of it, any case) or a window id. Repeat it or separate with commas. |
+| `-n`, `--dry-run` | Draw the result without changing anything. |
+| `-v`, `--verbose` | Also print the `aerospace` commands. |
+
+Slots are numbered biggest first, and equal slots in reading order. Slot 1 gets the focused window unless `--order` says otherwise; the rest follow grouped by app. Floating windows are left alone.
+
+### Your own layouts
+
+Add them to `~/.config/aeroutils/layouts.toml` (or `$XDG_CONFIG_HOME/aeroutils/layouts.toml`). A layout with a built-in name replaces the built-in one.
+
+```toml
+[dev]
+description = "Editor with two terminals on the right"
+layout = "h[3:w, 2:v[w, w]]"
+
+[wide-stack]
+layout = "h[2:w, 1:v[*]]"
+```
+
+| Syntax | Meaning |
+| --- | --- |
+| `w` | One window |
+| `*` | Every remaining window. At most once per layout; makes the layout fit any number of windows from its fixed slots + 1 up. |
+| `h[a, b, ...]` | Children side by side |
+| `v[a, b, ...]` | Children stacked top to bottom |
+| `3:x` | Child `x` gets a relative size of 3 (default 1) |
+
+Groups can nest one level deep: `h[w, v[w, w]]` works, `h[w, v[w, h[w, w]]]` does not.
+
+### How layouts are applied
+
+AeroSpace has no command to load a whole layout, so `aeroutils` rebuilds it with the commands it does have. It parks the workspace's windows on a temporary workspace, brings them back in a computed order, groups them with `join-with` and `move`, then sets sizes with `balance-sizes` and relative `resize` steps. The order matters because of how AeroSpace inserts windows, and that behaviour was taken from its source. It works whether or not the workspace is on screen.
+
+Limits:
+
+- **It arranges once.** AeroSpace has no layout modes, so windows opened later go wherever AeroSpace normally puts them. Run the command again to re-apply.
+- **The current order isn't kept.** AeroSpace doesn't report where windows sit in the tree, so slots are filled by focus, `--order` and app name.
+- **A visible workspace blinks** while its windows are parked and brought back.
+- **Sizes ignore gaps**, so they can be off by a few pixels.
+
 ## Calling it from an AeroSpace keybinding
 
 AeroSpace runs `exec-and-forget` commands with a minimal `PATH` that does not include pipx's `~/.local/bin`, so use the full path:
@@ -67,9 +152,10 @@ AeroSpace runs `exec-and-forget` commands with a minimal `PATH` that does not in
 ```toml
 [mode.main.binding]
 alt-shift-cmd-s = 'exec-and-forget ~/.local/bin/aeroutils swap 1 2'
+alt-shift-cmd-g = 'exec-and-forget ~/.local/bin/aeroutils layout grid'
 ```
 
-## How it works
+## How swapping works
 
 1. List every window and its workspace once, before anything moves.
 2. Move each window with `aerospace move-node-to-workspace --window-id`.
@@ -87,13 +173,17 @@ Because the windows are listed up front, swaps and rotations need no temporary w
 
 ```text
 src/aerospace_utils/
-  client.py   wrapper around the aerospace CLI
-  ops.py      workspace operations, independent of any interface
-  cli.py      the aeroutils command
-tests/        pytest suite, driven by an in-memory fake of the aerospace CLI
+  client.py    wrapper around the aerospace CLI
+  ops.py       swap, move and reorder, independent of any interface
+  layouts.py   layout language, built-in layouts and user layouts
+  arrange.py   turns a layout into aerospace commands and runs them
+  render.py    terminal diagrams
+  cli.py       the aeroutils command
+tests/         pytest suite, driven by a simulator of AeroSpace's window tree
+tests/live/    checks against the real AeroSpace (they move windows; run by hand)
 ```
 
-New interfaces (a menu bar app, keybinding helpers) can build on `ops.py` without going through the CLI.
+New interfaces (a menu bar app, keybinding helpers) can build on these modules without going through the CLI.
 
 ## Development
 
@@ -103,7 +193,9 @@ python3 -m venv .venv
 .venv/bin/pytest
 ```
 
-The tests never call the real `aerospace`, so they run anywhere, CI included.
+The tests never call the real `aerospace`, so they run anywhere, CI included. The fake in `tests/fake_aerospace.py` simulates AeroSpace's window tree, so layout tests check the resulting tree and window sizes.
+
+`tests/live/run_live_checks.py` checks every layout against the real AeroSpace using throwaway test windows. It changes what's on screen while it runs, so it's manual: read its docstring first.
 
 ## License
 

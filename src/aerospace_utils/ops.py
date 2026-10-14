@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from typing import Iterable, Sequence
 
 from .client import Aerospace, AerospaceError, Window
+from .errors import UsageError
 
 __all__ = [
     "Move",
@@ -51,13 +52,13 @@ def natural_key(name: str) -> tuple:
 
 def swap_mapping(a: str, b: str) -> dict[str, str]:
     if a == b:
-        raise ValueError(f"cannot swap workspace {a} with itself")
+        raise UsageError(f"cannot swap workspace {a} with itself")
     return {a: b, b: a}
 
 
 def move_mapping(source: str, target: str) -> dict[str, str]:
     if source == target:
-        raise ValueError(f"cannot move workspace {source} onto itself")
+        raise UsageError(f"cannot move workspace {source} onto itself")
     return {source: target}
 
 
@@ -69,10 +70,10 @@ def reorder_mapping(order: Sequence[str]) -> dict[str, str]:
     so on: `reorder_mapping(["3", "1", "2"])` moves 3 -> 1, 1 -> 2, 2 -> 3.
     """
     if len(order) < 2:
-        raise ValueError("reorder needs at least two workspaces")
+        raise UsageError("reorder needs at least two workspaces")
     duplicates = sorted({ws for ws in order if order.count(ws) > 1}, key=natural_key)
     if duplicates:
-        raise ValueError(f"workspace listed more than once: {', '.join(duplicates)}")
+        raise UsageError(f"workspace listed more than once: {', '.join(duplicates)}")
     slots = sorted(order, key=natural_key)
     return {source: slot for source, slot in zip(order, slots) if source != slot}
 

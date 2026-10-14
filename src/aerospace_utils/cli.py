@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import shutil
 import sys
 from typing import Optional, Sequence
 
-from . import __version__, ops
+from . import __version__, arrange, ops, render
 from .client import Aerospace, AerospaceError
+from .errors import UsageError
+from .layouts import Layout, load_layouts, user_layouts_path
 
 PROG = "aeroutils"
 
@@ -20,12 +23,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     commands = parser.add_subparsers(metavar="COMMAND", required=True)
 
-    commands.add_parser(
+    listing = commands.add_parser(
         "list", aliases=["ls"],
         help="show workspaces and their windows",
         description="Show every workspace with its monitor and windows. "
         "'*' marks the focused workspace, '+' the other visible ones.",
     )
+    listing.set_defaults(handler=show_list)
 
     swap = commands.add_parser(
         "swap",
@@ -70,6 +74,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     for command in (swap, move, reorder):
+        command.set_defaults(handler=run_remap)
         command.add_argument(
             "-n", "--dry-run", action="store_true",
             help="show what would move without moving anything",
@@ -79,10 +84,38 @@ def build_parser() -> argparse.ArgumentParser:
             help="focus follows your windows to their new workspace "
             "(default: stay on the current workspace)",
         )
+
+    catalog = commands.add_parser(
+        "layouts",
+        help="show the available layouts",
+        description="Draw every layout. With WORKSPACE, show only the layouts that fit its "
+        "tiled windows, filled with them. Custom layouts are read from "
+        f"{user_layouts_path()}.",
+    )
+    catalog.add_argument("workspace", nargs="?", metavar="WORKSPACE")
+    catalog.set_defaults(handler=show_layouts)
+
+    layout = commands.add_parser(
+        "layout",
+        help="arrange a workspace's windows in a layout",
+        description="Rebuild a workspace's tiling tree in the named layout. Slot 1 is the "
+        "biggest; it gets the focused window unless --order says otherwise. "
+        "Floating windows are left alone.",
+    )
+    layout.add_argument("name", metavar="NAME")
+    layout.add_argument("workspace", nargs="?", metavar="WORKSPACE", help="default: the focused workspace")
+    layout.add_argument(
+        "-o", "--order", action="append", default=[], metavar="APP_OR_ID",
+        help="fill slots in this order: an app name (substring) or window id, "
+        "repeatable or comma-separated",
+    )
+    layout.add_argument("-n", "--dry-run", action="store_true", help="show the result without changing anything")
+    layout.add_argument("-v", "--verbose", action="store_true", help="print the aerospace commands")
+    layout.set_defaults(handler=apply_layout)
     return parser
 
 
-def show_list(client: Aerospace) -> int:
+def show_list(client: Aerospace, args: argparse.Namespace) -> int:
     windows: dict[str, list[ops.Window]] = {}
     for window in client.list_windows():
         windows.setdefault(window.workspace, []).append(window)
@@ -104,7 +137,8 @@ def count_windows(count: int) -> str:
     return f"{count} window" if count == 1 else f"{count} windows"
 
 
-def run_remap(client: Aerospace, args: argparse.Namespace, mapping: dict[str, str]) -> int:
+def run_remap(client: Aerospace, args: argparse.Namespace) -> int:
+    mapping = args.mapping(args)
     if not mapping:
         print("Nothing to move: the workspaces are already in that order.")
         return 0
@@ -135,23 +169,79 @@ def run_remap(client: Aerospace, args: argparse.Namespace, mapping: dict[str, st
     return 1 if result.failures else 0
 
 
+def _diagram_size(client: Aerospace, workspace: Optional[str]) -> tuple[int, int]:
+    size = client.workspace_size(workspace) if workspace is not None else None
+    return render.canvas_size(size[0] / size[1] if size else None)
+
+
+def _block(layout: Layout, windows: int, labels: dict, size: tuple[int, int]) -> list[str]:
+    diagram = render.draw(layout.tree(windows), labels, size)
+    title = f"{layout.name}  ({layout.windows_label})"
+    width = max(len(diagram[0]), len(title))
+    return [title, render.fit(layout.description, width), *diagram]
+
+
+def show_layouts(client: Aerospace, args: argparse.Namespace) -> int:
+    layouts = load_layouts()
+    terminal_width = shutil.get_terminal_size((100, 24)).columns
+    workspace = args.workspace
+
+    if workspace is None:
+        size = _diagram_size(client, None)
+        blocks = [_block(l, l.example_windows, {}, size) for l in layouts.values()]
+        print("\n".join(render.side_by_side(blocks, terminal_width)))
+        print(f"\nApply one with: {PROG} layout NAME [WORKSPACE]")
+        return 0
+
+    tiled = [w for w in client.list_windows(workspace) if w.tiled]
+    if not tiled:
+        print(f"Workspace {workspace} has no tiled windows.")
+        return 0
+    ordered = arrange.order_windows(tiled, client.focused_window_id())
+    labels = {number: w.app for number, w in enumerate(ordered, start=1)}
+    fitting = [l for l in layouts.values() if l.fits(len(tiled))]
+    print(f"Workspace {workspace}: {count_windows(len(tiled))} ({ops.summarize_apps(tiled)})\n")
+    size = _diagram_size(client, workspace)
+    blocks = [_block(l, len(tiled), labels, size) for l in fitting]
+    print("\n".join(render.side_by_side(blocks, terminal_width)))
+    print(f"\nApply one with: {PROG} layout NAME {workspace}")
+    return 0
+
+
+def apply_layout(client: Aerospace, args: argparse.Namespace) -> int:
+    layouts = load_layouts()
+    layout = layouts.get(args.name)
+    if layout is None:
+        raise UsageError(f"unknown layout '{args.name}'. Available: {', '.join(layouts)}")
+    workspace = args.workspace or client.focused_workspace()
+    if workspace is None:
+        raise UsageError("no focused workspace; name one")
+    order = [p.strip() for value in args.order for p in value.split(",") if p.strip()]
+
+    arrangement = arrange.plan(client, layout, workspace, order)
+    if not args.dry_run:
+        arrange.apply(client, arrangement)
+
+    verb = "Would apply" if args.dry_run else "Applied"
+    print(f"{verb} {layout.name} to workspace {workspace} ({count_windows(len(arrangement.windows))}):")
+    labels = {number: w.app for number, w in arrangement.windows.items()}
+    print("\n".join(line.rstrip() for line in render.draw(arrangement.tree, labels, _diagram_size(client, workspace))))
+    if arrangement.skipped:
+        print(f"Left {count_windows(len(arrangement.skipped))} alone (floating or minimized).")
+    if args.verbose:
+        print("\naerospace commands:")
+        for command in arrangement.commands:
+            print("  aerospace " + " ".join(command))
+    return 0
+
+
 def main(argv: Optional[Sequence[str]] = None, client: Optional[Aerospace] = None) -> int:
-    parser = build_parser()
-    args = parser.parse_args(argv)
-
-    mapping = None
-    if "mapping" in args:
-        try:
-            mapping = args.mapping(args)
-        except ValueError as error:
-            print(f"{PROG}: error: {error}", file=sys.stderr)
-            return 2
-
-    client = client or Aerospace()
+    args = build_parser().parse_args(argv)
     try:
-        if mapping is None:
-            return show_list(client)
-        return run_remap(client, args, mapping)
+        return args.handler(client or Aerospace(), args)
+    except UsageError as error:
+        print(f"{PROG}: error: {error}", file=sys.stderr)
+        return 2
     except AerospaceError as error:
         print(f"{PROG}: {error}", file=sys.stderr)
         return 1

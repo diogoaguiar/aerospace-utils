@@ -3,6 +3,15 @@ import pytest
 from aerospace_utils.client import Aerospace
 from fake_aerospace import FakeAerospace
 
+SCREEN = (1200.0, 800.0)
+
+
+@pytest.fixture(autouse=True)
+def isolated_config(tmp_path, monkeypatch):
+    """Keep the user's real ~/.config/aeroutils out of the tests."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    return tmp_path / "config" / "aeroutils"
+
 
 @pytest.fixture
 def fake():
@@ -28,4 +37,4 @@ def fake():
 
 @pytest.fixture
 def client(fake):
-    return Aerospace(runner=fake)
+    return Aerospace(runner=fake, screens=lambda: [SCREEN])

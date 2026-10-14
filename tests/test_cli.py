@@ -82,3 +82,64 @@ def test_reorder_already_in_order(fake, client, capsys):
 
     assert fake.moves() == []
     assert "already in that order" in capsys.readouterr().out
+
+
+def test_layouts_catalog(client, capsys):
+    assert main(["layouts"], client=client) == 0
+
+    out = capsys.readouterr().out
+    for name in ("columns", "grid", "main-left", "main-center", "2x2"):
+        assert name in out
+
+
+def test_layouts_for_a_workspace_shows_only_fitting_ones(client, capsys):
+    assert main(["layouts", "2"], client=client) == 0
+
+    out = capsys.readouterr().out
+    assert "Workspace 2: 3 windows" in out
+    assert "main-left" in out and "main-center" in out
+    assert "2x2" not in out
+    assert "Terminal" in out
+
+
+def test_layout_dry_run(fake, client, capsys):
+    assert main(["layout", "main-left", "2", "--dry-run"], client=client) == 0
+
+    assert fake.moves() == []
+    assert "Would apply main-left to workspace 2" in capsys.readouterr().out
+
+
+def test_layout_defaults_to_focused_workspace(fake, client, capsys):
+    assert main(["layout", "main-left", "--order", "editor"], client=client) == 0
+
+    assert fake.tree("2") == ("h", [203, ("v", [201, 202])])
+    assert "Applied main-left to workspace 2" in capsys.readouterr().out
+
+
+def test_layout_verbose_prints_commands(client, capsys):
+    main(["layout", "columns", "2", "-n", "-v"], client=client)
+
+    assert "aerospace join-with" not in capsys.readouterr().out
+    main(["layout", "main-left", "2", "-n", "-v"], client=client)
+    assert "aerospace join-with --window-id" in capsys.readouterr().out
+
+
+def test_unknown_layout(client, capsys):
+    assert main(["layout", "nope"], client=client) == 2
+
+    assert "unknown layout 'nope'" in capsys.readouterr().err
+
+
+def test_layout_that_does_not_fit(client, capsys):
+    assert main(["layout", "2x2", "2"], client=client) == 2
+
+    assert "needs 4 windows" in capsys.readouterr().err
+
+
+def test_custom_layout_from_config(fake, client, isolated_config):
+    isolated_config.mkdir(parents=True)
+    (isolated_config / "layouts.toml").write_text('[trio]\nlayout = "v[2:w, h[w, w]]"\n')
+
+    assert main(["layout", "trio", "2"], client=client) == 0
+
+    assert fake.tree("2") == ("v", [201, ("h", [203, 202])])
