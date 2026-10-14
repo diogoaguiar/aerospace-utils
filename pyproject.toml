@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aerospace-utils"
+dynamic = ["version"]
+description = "Command-line utilities for the AeroSpace tiling window manager on macOS"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+dependencies = []
+keywords = ["aerospace", "macos", "tiling", "window-manager", "workspaces"]
+classifiers = [
+    "Environment :: Console",
+    "Environment :: MacOS X",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+aeroutils = "aerospace_utils.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/diogoaguiar/aerospace-utils"
+Issues = "https://github.com/diogoaguiar/aerospace-utils/issues"
+
+[tool.hatch.version]
+path = "src/aerospace_utils/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aerospace_utils"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]
