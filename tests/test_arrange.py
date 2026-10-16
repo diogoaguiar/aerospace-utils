@@ -41,7 +41,7 @@ def test_main_left_builds_tree_and_sizes(fake, client):
 def test_grid_of_six_fills_in_reading_order():
     fake, client = workspace_with(6)
 
-    run(client, LAYOUTS["nx2"])
+    run(client, LAYOUTS["2-rows"])
 
     assert fake.tree("5") == ("h", [("v", [1, 4]), ("v", [2, 5]), ("v", [3, 6])])
 
@@ -49,7 +49,7 @@ def test_grid_of_six_fills_in_reading_order():
 def test_two_columns_with_uneven_rows():
     fake, client = workspace_with(5)
 
-    run(client, LAYOUTS["2xn"])
+    run(client, LAYOUTS["2-columns"])
 
     assert fake.tree("5") == ("h", [("v", [1, 2]), ("v", [3, 4, 5])])
     sizes = rounded(fake.sizes("5", W, H))

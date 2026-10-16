@@ -314,8 +314,8 @@ def builtin_layouts() -> list[Layout]:
         from_expression("main-right", "h[2:v[*], 3:w]", "Main right, the rest stacked on the left"),
         from_expression("main-top", "v[3:w, 2:h[*]]", "Main on top, the rest side by side below"),
         Layout("main-center", "Main in the middle, the rest on both sides", 3, None, _main_center, 5),
-        Layout("nx2", "Two rows, as many columns as it takes", 4, None, _two_rows, 8),
-        Layout("2xn", "Two columns, as many rows as it takes", 4, None, _two_columns, 6),
+        Layout("2-rows", "Two rows, as many columns as it takes", 4, None, _two_rows, 8),
+        Layout("2-columns", "Two columns, as many rows as it takes", 4, None, _two_columns, 6),
         from_expression("2x2", "h[v[w, w], v[w, w]]", "Four equal quarters"),
     ]
 

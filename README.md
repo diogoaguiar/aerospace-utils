@@ -99,11 +99,11 @@ Would apply main-left to workspace 2 (3 windows):
 | `main-left`, `main-right` | 2+ | Main window (60%) beside a stack of the rest |
 | `main-top` | 2+ | Main window (60%) above a row of the rest |
 | `main-center` | 3+ | Main window (50%) between two stacks |
-| `nx2` | 4+ | Two rows, with as many columns as it takes |
-| `2xn` | 4+ | Two columns, with as many rows as it takes |
+| `2-rows` | 4+ | Two rows, with as many columns as it takes |
+| `2-columns` | 4+ | Two columns, with as many rows as it takes |
 | `2x2` | 4 | Four equal quarters |
 
-When the windows don't divide evenly, `grid`, `nx2` and `2xn` put the bigger cells first, so slot 1 gets the extra room. For example, `nx2` with 5 windows gives slot 1 a full-height column.
+When the windows don't divide evenly, `grid`, `2-rows` and `2-columns` put the bigger cells first, so slot 1 gets the extra room. For example, `2-rows` with 5 windows gives slot 1 a full-height column.
 
 `layout` options:
 

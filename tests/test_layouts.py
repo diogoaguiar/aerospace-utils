@@ -72,13 +72,13 @@ def test_grid_puts_fuller_columns_last():
 @pytest.mark.parametrize(
     "name, windows, expression",
     [
-        ("nx2", 4, "h[v[w, w], v[w, w]]"),
-        ("nx2", 7, "h[v[w], v[w, w], v[w, w], v[w, w]]"),
-        ("2xn", 6, "h[v[w, w, w], v[w, w, w]]"),
-        ("2xn", 5, "h[v[w, w], v[w, w, w]]"),
+        ("2-rows", 4, "h[v[w, w], v[w, w]]"),
+        ("2-rows", 7, "h[v[w], v[w, w], v[w, w], v[w, w]]"),
+        ("2-columns", 6, "h[v[w, w, w], v[w, w, w]]"),
+        ("2-columns", 5, "h[v[w, w], v[w, w, w]]"),
     ],
 )
-def test_two_row_and_two_column_grids(name, windows, expression):
+def test_two_rows_and_two_columns(name, windows, expression):
     assert BUILTINS[name].expression(windows) == expression
     assert not BUILTINS[name].fits(3)
 
