@@ -115,7 +115,7 @@ def show(workspace: str, back_to: str) -> dict:
 
 
 def expected(layout_name: str, count: int) -> dict[int, tuple[float, float, float, float]]:
-    tree = load_layouts()[layout_name].tree(count)
+    tree = load_layouts(WORK / "config" / "aeroutils" / "layouts.toml")[layout_name].tree(count)
     return {slot.index: rect for slot, rect in zip(slots(tree), unit_rects(tree))}
 
 
@@ -177,9 +177,12 @@ def main() -> int:
                 aero("workspace", TEST_WS)
                 time.sleep(0.3)
             # Pin slot k to probe-k, whatever window happens to be focused.
-            aeroutils("layout", name, TEST_WS, "--order", ",".join(ids[n] for n in wanted))
-            seen = show(TEST_WS, home_ws)
-            problems = compare(expected(name, count), seen, wanted)
+            try:
+                aeroutils("layout", name, TEST_WS, "--order", ",".join(ids[n] for n in wanted))
+                seen = show(TEST_WS, home_ws)
+                problems = compare(expected(name, count), seen, wanted)
+            except (RuntimeError, KeyError, ValueError) as error:
+                problems = [f"error: {error}"]
             if how == "floating":
                 layout = aero("list-windows", "--workspace", TEST_WS, "--format", "%{window-title}=%{window-layout}")
                 if "probe-6=floating" not in layout:
