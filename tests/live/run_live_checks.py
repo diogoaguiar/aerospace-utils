@@ -50,9 +50,10 @@ CASES = [
     ("main-center", 5, "hidden"),
     ("main-center", 5, "visible"),
     ("2x2", 4, "hidden"),
-    ("3x2", 6, "hidden"),
-    ("2x3", 6, "hidden"),
-    ("grid", 6, "reapply"),  # rebuild over the 2x3 just applied
+    ("nx2", 6, "hidden"),
+    ("2xn", 5, "hidden"),
+    ("2xn", 6, "hidden"),
+    ("grid", 6, "reapply"),  # rebuild over the 2xn just applied
     ("uneven", 3, "hidden"),
     ("ratios", 3, "visible"),
     ("columns", 5, "floating"),  # probe-6 floating must stay untouched

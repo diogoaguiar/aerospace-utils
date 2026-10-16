@@ -281,12 +281,23 @@ def _windows(count: int) -> str:
     return ", ".join(["w"] * count)
 
 
-def _grid(n: int) -> str:
-    """Columns as even as possible; the fuller columns go last so bigger slots come first."""
-    columns = math.ceil(math.sqrt(n))
+def _in_columns(n: int, columns: int) -> str:
+    """n windows in columns as even as possible; the fuller columns go last so bigger slots come first."""
     base, extra = divmod(n, columns)
     counts = [base] * (columns - extra) + [base + 1] * extra
     return "h[" + ", ".join(f"v[{_windows(c)}]" for c in counts) + "]"
+
+
+def _grid(n: int) -> str:
+    return _in_columns(n, math.ceil(math.sqrt(n)))
+
+
+def _two_rows(n: int) -> str:
+    return _in_columns(n, math.ceil(n / 2))
+
+
+def _two_columns(n: int) -> str:
+    return _in_columns(n, 2)
 
 
 def _main_center(n: int) -> str:
@@ -303,9 +314,9 @@ def builtin_layouts() -> list[Layout]:
         from_expression("main-right", "h[2:v[*], 3:w]", "Main right, the rest stacked on the left"),
         from_expression("main-top", "v[3:w, 2:h[*]]", "Main on top, the rest side by side below"),
         Layout("main-center", "Main in the middle, the rest on both sides", 3, None, _main_center, 5),
+        Layout("nx2", "Two rows, as many columns as it takes", 4, None, _two_rows, 8),
+        Layout("2xn", "Two columns, as many rows as it takes", 4, None, _two_columns, 6),
         from_expression("2x2", "h[v[w, w], v[w, w]]", "Four equal quarters"),
-        from_expression("3x2", "h[v[w, w], v[w, w], v[w, w]]", "3 columns by 2 rows"),
-        from_expression("2x3", "h[v[w, w, w], v[w, w, w]]", "2 columns by 3 rows"),
     ]
 
 

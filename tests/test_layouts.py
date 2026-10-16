@@ -69,6 +69,20 @@ def test_grid_puts_fuller_columns_last():
     ))
 
 
+@pytest.mark.parametrize(
+    "name, windows, expression",
+    [
+        ("nx2", 4, "h[v[w, w], v[w, w]]"),
+        ("nx2", 7, "h[v[w], v[w, w], v[w, w], v[w, w]]"),
+        ("2xn", 6, "h[v[w, w, w], v[w, w, w]]"),
+        ("2xn", 5, "h[v[w, w], v[w, w, w]]"),
+    ],
+)
+def test_two_row_and_two_column_grids(name, windows, expression):
+    assert BUILTINS[name].expression(windows) == expression
+    assert not BUILTINS[name].fits(3)
+
+
 def test_main_center_splits_the_rest_on_both_sides():
     tree = BUILTINS["main-center"].tree(4)
 
